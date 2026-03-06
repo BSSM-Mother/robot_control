@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 
@@ -21,6 +22,7 @@ ament_target_dependencies(
   tracking_controller
   rclcpp
   geometry_msgs
+  std_msgs
   sensor_msgs
   tf2
 )

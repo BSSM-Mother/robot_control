@@ -4,6 +4,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 class TrackingController : public rclcpp::Node {
 public:
@@ -12,8 +13,10 @@ public:
 private:
   void personPositionCallback(const geometry_msgs::msg::Point::SharedPtr msg);
   void timerCallback();
+  void followModeCallback(const std_msgs::msg::Bool::SharedPtr msg);
   
   rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr person_pos_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr follow_mode_sub_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
   rclcpp::TimerBase::SharedPtr search_timer_;
   
@@ -34,6 +37,7 @@ private:
   
   // 추적 상태
   bool person_detected_;
+  bool follow_mode_;  // MQTT로 제어 (true = 따라가기 ON)
   rclcpp::Time last_update_time_;
   rclcpp::Time last_detection_time_;
   static constexpr float SEARCH_TIMEOUT_ = 2.0;  // 2초 이상 감지 안되면 회전

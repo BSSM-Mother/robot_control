@@ -1,4 +1,5 @@
 #include "robot_control/tracking_controller.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 TrackingController::TrackingController() 
   : rclcpp::Node("tracking_controller"),
@@ -6,12 +7,18 @@ TrackingController::TrackingController()
     kp_angular_(0.8), ki_angular_(0.03), kd_angular_(0.15),
     prev_error_x_(0.0), prev_error_y_(0.0),
     integral_error_x_(0.0), integral_error_y_(0.0),
-    person_detected_(false) {
+    person_detected_(false),
+    follow_mode_(false) {
   
   // 구독/발행 설정
   person_pos_sub_ = this->create_subscription<geometry_msgs::msg::Point>(
     "person_position", 10, 
     std::bind(&TrackingController::personPositionCallback, this, std::placeholders::_1)
+  );
+
+  follow_mode_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+    "/robot/follow_mode", 10,
+    std::bind(&TrackingController::followModeCallback, this, std::placeholders::_1)
   );
   
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
@@ -28,7 +35,25 @@ TrackingController::TrackingController()
   RCLCPP_INFO(this->get_logger(), "Tracking Controller initialized");
 }
 
+void TrackingController::followModeCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+  follow_mode_ = msg->data;
+  RCLCPP_INFO(this->get_logger(), "Follow mode: %s", follow_mode_ ? "ON" : "OFF");
+
+  // 모드 OFF 시 즉시 정지
+  if (!follow_mode_) {
+    auto cmd = geometry_msgs::msg::Twist();
+    cmd.linear.x = 0.0;
+    cmd.angular.z = 0.0;
+    cmd_vel_pub_->publish(cmd);
+  }
+}
+
 void TrackingController::personPositionCallback(const geometry_msgs::msg::Point::SharedPtr msg) {
+  // follow_mode가 꺼져 있으면 감지 무시
+  if (!follow_mode_) {
+    return;
+  }
+
   person_detected_ = true;
   last_detection_time_ = this->now();
   
@@ -85,6 +110,11 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
 }
 
 void TrackingController::timerCallback() {
+  // follow_mode가 꺼져 있으면 회전 검색 안 함
+  if (!follow_mode_) {
+    return;
+  }
+
   // 마지막 감지 이후 경과 시간 확인
   double time_since_detection = (this->now() - last_detection_time_).seconds();
   
