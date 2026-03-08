@@ -41,14 +41,14 @@ tracking_controller:
 
 ### 2. **obstacle_avoider** - 장애물 회피
 ```
-입력: scan (sensor_msgs/LaserScan from LIDAR)
-출력: cmd_vel_raw (geometry_msgs/Twist)
+입력: cmd_vel_raw (tracking_controller), scan (LIDAR)
+출력: cmd_vel (geometry_msgs/Twist → robot_base)
 ```
 
 **기능**:
-- LIDAR 거리 데이터로 전방 장애물 감지
-- 안전 거리 유지
-- 충돌 위험 시 자동 감속
+- `cmd_vel_raw`를 받아 LIDAR 데이터와 비교
+- 전방 장애물 거리에 따라 속도 보정 (감속/정지)
+- 보정된 명령을 `cmd_vel`로 발행 (필터 역할)
 
 ### 3. **person_mover** - 움직임 응답 제어
 ```
@@ -82,11 +82,11 @@ tracking_controller:
 │    robot_control (제어 로직)          │
 │  ┌────────────────────────────────┐  │
 │  │ tracking_controller (추적)      │  │
-│  │ obstacle_avoider (회피)        │  │
+│  │ obstacle_avoider (회피 필터)   │  │
 │  │ person_mover (움직임 응답)     │  │
 │  └────────────────────────────────┘  │
 └────────┬─────────────────────────────┘
-         │ cmd_vel_raw (Twist)
+         │ cmd_vel (보정된 속도 명령)
          ▼
 ┌──────────────────┐
 │   robot_base     │
@@ -106,7 +106,7 @@ tracking_controller:
 ### 발행 토픽
 | 토픽 | 타입 | 대상 | 설명 |
 |------|------|------|------|
-| `cmd_vel_raw` | `geometry_msgs/Twist` | robot_base | 로봇 속도 명령 |
+| `cmd_vel` | `geometry_msgs/Twist` | robot_base | 보정된 속도 명령 (장애물 회피 적용) |
 
 ## 💾 빌드
 
