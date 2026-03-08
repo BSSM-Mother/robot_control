@@ -30,21 +30,6 @@ ament_target_dependencies(
 # Install
 install(TARGETS tracking_controller
   DESTINATION lib/${PROJECT_NAME})
-
-add_executable(obstacle_avoider src/obstacle_avoider.cpp)
-target_include_directories(obstacle_avoider PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
-ament_target_dependencies(
-  obstacle_avoider
-  rclcpp
-  geometry_msgs
-  sensor_msgs
-)
-
-install(TARGETS obstacle_avoider
-  DESTINATION lib/${PROJECT_NAME})
-
 add_executable(person_mover src/person_mover.cpp)
 target_include_directories(person_mover PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -8,7 +8,7 @@ TrackingController::TrackingController()
     prev_error_x_(0.0), prev_error_y_(0.0),
     integral_error_x_(0.0), integral_error_y_(0.0),
     person_detected_(false),
-    follow_mode_(false) {
+    follow_mode_(true) {
 
   // 구독/발행 설정
   person_pos_sub_ = this->create_subscription<geometry_msgs::msg::Point>(
@@ -21,7 +21,6 @@ TrackingController::TrackingController()
     std::bind(&TrackingController::followModeCallback, this, std::placeholders::_1)
   );
 
-  // obstacle_avoider 가 /cmd_vel_raw 를 받아 장애물 보정 후 /cmd_vel 발행
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_raw", 10);
 
   // 검색 타이머 설정 (10Hz로 주기적으로 체크)
