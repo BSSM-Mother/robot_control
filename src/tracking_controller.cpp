@@ -4,11 +4,12 @@
 TrackingController::TrackingController()
   : rclcpp::Node("tracking_controller"),
     kp_linear_(0.6), ki_linear_(0.02), kd_linear_(0.08),
-    kp_angular_(0.8), ki_angular_(0.03), kd_angular_(0.15),
+    kp_angular_(0.5), ki_angular_(0.01), kd_angular_(0.05),
     prev_error_x_(0.0), prev_error_y_(0.0),
     integral_error_x_(0.0), integral_error_y_(0.0),
     person_detected_(false),
-    follow_mode_(true) {
+    follow_mode_(true),
+    search_phase_(SearchPhase::ROTATE) {
 
   // 구독/발행 설정
   person_pos_sub_ = this->create_subscription<geometry_msgs::msg::Point>(
@@ -29,8 +30,9 @@ TrackingController::TrackingController()
     std::bind(&TrackingController::timerCallback, this)
   );
 
-  last_update_time_ = this->now();
+  last_update_time_    = this->now();
   last_detection_time_ = this->now();
+  search_phase_start_  = this->now();
 
   RCLCPP_INFO(this->get_logger(), "Tracking Controller initialized");
 }
@@ -62,8 +64,11 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
     return;
   }
 
-  person_detected_ = true;
+  person_detected_    = true;
   last_detection_time_ = this->now();
+  // 다음에 검색 모드 진입 시 ROTATE부터 시작하도록 리셋
+  search_phase_       = SearchPhase::ROTATE;
+  search_phase_start_ = this->now();
 
   // 현재 시간 계산
   auto current_time = this->now();
@@ -93,8 +98,8 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
   float linear_vel = -kp_linear_ * error_y * confidence;
 
   // 속도 제한 (거리 유지 제어가 작동하도록 최소속도 강제 제거)
-  linear_vel = std::max(-0.8f, std::min(0.8f, linear_vel));
-  angular_vel = std::max(-1.5f, std::min(1.5f, angular_vel));
+  linear_vel = std::max(-0.5f, std::min(0.5f, linear_vel));
+  angular_vel = std::max(-0.6f, std::min(0.6f, angular_vel));
 
   // 상태만 업데이트 (발행은 timerCallback에서만)
   auto cmd = geometry_msgs::msg::Twist();
@@ -121,15 +126,40 @@ void TrackingController::timerCallback() {
 
   if (time_since_detection > SEARCH_TIMEOUT_) {
     person_detected_ = false;
+
+    const auto   now          = this->now();
+    const double phase_elapsed = (now - search_phase_start_).seconds();
     auto cmd = geometry_msgs::msg::Twist();
-    cmd.linear.x = 0.0;
-    cmd.angular.z = 0.2;
+
+    if (search_phase_ == SearchPhase::ROTATE) {
+      if (phase_elapsed >= SEARCH_ROTATE_SEC_) {
+        // 회전 완료 → 대기 페이즈로 전환
+        search_phase_      = SearchPhase::WAIT;
+        search_phase_start_ = now;
+        // 정지 명령 (cmd 기본값 0)
+        RCLCPP_INFO(this->get_logger(), "[SEARCH] 대기 시작 (%.2fs 회전 완료)", phase_elapsed);
+      } else {
+        cmd.angular.z = SEARCH_ANGULAR_;
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+          "[SEARCH] 회전 중 %.2f/%.2fs", phase_elapsed, SEARCH_ROTATE_SEC_);
+      }
+    } else {  // WAIT
+      if (phase_elapsed >= SEARCH_WAIT_SEC_) {
+        // 대기 완료 → 회전 페이즈로 전환
+        search_phase_      = SearchPhase::ROTATE;
+        search_phase_start_ = now;
+        cmd.angular.z      = SEARCH_ANGULAR_;
+        RCLCPP_INFO(this->get_logger(), "[SEARCH] 회전 시작");
+      }
+      // else: 대기 중 → cmd 그대로 0 (정지)
+      RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+        "[SEARCH] 대기 중 %.2f/%.2fs", phase_elapsed, SEARCH_WAIT_SEC_);
+    }
+
     cmd_vel_pub_->publish(cmd);
-    RCLCPP_INFO(this->get_logger(),
-      "[SEARCH] 회전 중 (감지 없음 %.1fs) lin=0.00 ang=0.20", time_since_detection);
   } else {
     cmd_vel_pub_->publish(last_tracking_cmd_);
-    RCLCPP_INFO(this->get_logger(),
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
       "[TRACK] lin=%.2f ang=%.2f (%.1fs ago)",
       last_tracking_cmd_.linear.x, last_tracking_cmd_.angular.z, time_since_detection);
   }
