@@ -41,17 +41,22 @@ private:
   rclcpp::Time last_update_time_;
   rclcpp::Time last_detection_time_;
   geometry_msgs::msg::Twist last_tracking_cmd_;   // 마지막 추적 명령 (timerCallback에서 재발행)
-  static constexpr float SEARCH_TIMEOUT_ = 3.0f;  // 3초 이상 감지 없으면 검색 모드 진입
+  static constexpr float SEARCH_TIMEOUT_ = 5.0f;  // 추적 중 5초 감지 없으면 검색 모드
   static constexpr float MIN_CONFIDENCE_ = 0.2f;  // 이 미만이면 감지 무시
 
-  // 검색 모드: 45도 회전 → 대기 → 45도 회전 반복
-  enum class SearchPhase { ROTATE, WAIT };
+  // 검색 모드: ROTATE → OBSERVE → ROTATE ...
+  //   ROTATE  : 회전
+  //   OBSERVE : 정지 후 감지 대기 — 감지되면 즉시 TRACK, 타임아웃 시 다시 ROTATE
+  enum class SearchPhase { ROTATE, OBSERVE };
   SearchPhase  search_phase_;
   rclcpp::Time search_phase_start_;
-  static constexpr float SEARCH_ANGULAR_    = 1.0f;  // 검색 회전 각속도 (cmd_vel rad/s)
-  // ↓ 실측 후 튜닝 필요: 45도 도는 데 걸리는 시간 (모터 속도·휠 간격에 따라 다름)
-  static constexpr float SEARCH_ROTATE_SEC_ = 0.5f;  // 45도 회전 시간 [s]
-  static constexpr float SEARCH_WAIT_SEC_   = 1.5f;  // 대기 시간 [s]
+  bool         was_searching_;                       // 추적→검색 전환 감지용
+
+  static constexpr float SEARCH_ANGULAR_    = 1.0f;  // 검색 회전 각속도 (rad/s)
+  static constexpr float SEARCH_ROTATE_SEC_ = 0.5f;  // 회전 시간 [s] — 실측 후 튜닝
+  static constexpr float OBSERVE_SEC_       = 2.5f;  // 감지 대기 시간 [s]
+  static constexpr float SETTLE_TIME_       = 0.3f;  // 회전 직후 안정화 (감지 무시) [s]
+  rclcpp::Time ignore_detection_until_;
 };
 
 #endif  // ROBOT_CONTROL__TRACKING_CONTROLLER_HPP_

@@ -30,9 +30,11 @@ TrackingController::TrackingController()
     std::bind(&TrackingController::timerCallback, this)
   );
 
-  last_update_time_    = this->now();
-  last_detection_time_ = this->now();
-  search_phase_start_  = this->now();
+  last_update_time_        = this->now();
+  last_detection_time_     = this->now();
+  search_phase_start_      = this->now();
+  ignore_detection_until_  = rclcpp::Time(0, 0, RCL_ROS_TIME);
+  was_searching_           = false;
 
   RCLCPP_INFO(this->get_logger(), "Tracking Controller initialized");
 }
@@ -53,6 +55,11 @@ void TrackingController::followModeCallback(const std_msgs::msg::Bool::SharedPtr
 void TrackingController::personPositionCallback(const geometry_msgs::msg::Point::SharedPtr msg) {
   // follow_mode가 꺼져 있으면 감지 무시
   if (!follow_mode_) {
+    return;
+  }
+
+  // 회전 직후 카메라 안정화 대기 중이면 무시
+  if (this->now() < ignore_detection_until_) {
     return;
   }
 
@@ -116,44 +123,50 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
 }
 
 void TrackingController::timerCallback() {
-  // follow_mode가 꺼져 있으면 회전 검색 안 함
   if (!follow_mode_) {
     return;
   }
 
-  // 마지막 감지 이후 경과 시간 확인
-  double time_since_detection = (this->now() - last_detection_time_).seconds();
+  const auto   now                 = this->now();
+  const double time_since_detection = (now - last_detection_time_).seconds();
+  const bool   in_search            = (time_since_detection > SEARCH_TIMEOUT_);
 
-  if (time_since_detection > SEARCH_TIMEOUT_) {
+  // 추적 → 검색 전환 감지: 상태머신 ROTATE부터 재시작
+  if (in_search && !was_searching_) {
+    search_phase_      = SearchPhase::ROTATE;
+    search_phase_start_ = now;
+    RCLCPP_INFO(this->get_logger(), "[SEARCH] 검색 모드 진입 (%.1fs 감지 없음)", time_since_detection);
+  }
+  was_searching_ = in_search;
+
+  if (in_search) {
     person_detected_ = false;
-
-    const auto   now          = this->now();
     const double phase_elapsed = (now - search_phase_start_).seconds();
     auto cmd = geometry_msgs::msg::Twist();
 
     if (search_phase_ == SearchPhase::ROTATE) {
       if (phase_elapsed >= SEARCH_ROTATE_SEC_) {
-        // 회전 완료 → 대기 페이즈로 전환
-        search_phase_      = SearchPhase::WAIT;
-        search_phase_start_ = now;
-        // 정지 명령 (cmd 기본값 0)
-        RCLCPP_INFO(this->get_logger(), "[SEARCH] 대기 시작 (%.2fs 회전 완료)", phase_elapsed);
+        // 회전 완료 → OBSERVE 전환, settle 타이머 시작
+        search_phase_           = SearchPhase::OBSERVE;
+        search_phase_start_     = now;
+        ignore_detection_until_ = now + rclcpp::Duration::from_seconds(SETTLE_TIME_);
+        RCLCPP_INFO(this->get_logger(), "[SEARCH] 감지 대기 시작 (안정화 %.1fs)", SETTLE_TIME_);
       } else {
         cmd.angular.z = SEARCH_ANGULAR_;
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
           "[SEARCH] 회전 중 %.2f/%.2fs", phase_elapsed, SEARCH_ROTATE_SEC_);
       }
-    } else {  // WAIT
-      if (phase_elapsed >= SEARCH_WAIT_SEC_) {
-        // 대기 완료 → 회전 페이즈로 전환
+    } else {  // OBSERVE
+      if (phase_elapsed >= OBSERVE_SEC_) {
+        // 감지 없음 → 다시 ROTATE
         search_phase_      = SearchPhase::ROTATE;
         search_phase_start_ = now;
         cmd.angular.z      = SEARCH_ANGULAR_;
-        RCLCPP_INFO(this->get_logger(), "[SEARCH] 회전 시작");
+        RCLCPP_INFO(this->get_logger(), "[SEARCH] %.1fs 감지 없음 → 다시 회전", OBSERVE_SEC_);
       }
-      // else: 대기 중 → cmd 그대로 0 (정지)
+      // else: 정지 유지 (cmd = 0), 감지 콜백이 오면 자동으로 TRACK 전환
       RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-        "[SEARCH] 대기 중 %.2f/%.2fs", phase_elapsed, SEARCH_WAIT_SEC_);
+        "[SEARCH] 감지 대기 중 %.2f/%.2fs", phase_elapsed, OBSERVE_SEC_);
     }
 
     cmd_vel_pub_->publish(cmd);
