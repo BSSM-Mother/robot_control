@@ -120,15 +120,18 @@ void TrackingController::timerCallback() {
   double time_since_detection = (this->now() - last_detection_time_).seconds();
 
   if (time_since_detection > SEARCH_TIMEOUT_) {
-    // 감지 없음 → 천천히 제자리 회전
     person_detected_ = false;
     auto cmd = geometry_msgs::msg::Twist();
     cmd.linear.x = 0.0;
     cmd.angular.z = 0.2;
     cmd_vel_pub_->publish(cmd);
+    RCLCPP_INFO(this->get_logger(),
+      "[SEARCH] 회전 중 (감지 없음 %.1fs) lin=0.00 ang=0.20", time_since_detection);
   } else {
-    // 감지 중 → 마지막 추적 명령 재발행 (wheel_controller timeout 방지)
     cmd_vel_pub_->publish(last_tracking_cmd_);
+    RCLCPP_INFO(this->get_logger(),
+      "[TRACK] lin=%.2f ang=%.2f (%.1fs ago)",
+      last_tracking_cmd_.linear.x, last_tracking_cmd_.angular.z, time_since_detection);
   }
 }
 
