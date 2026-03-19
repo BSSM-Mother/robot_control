@@ -23,9 +23,9 @@ TrackingController::TrackingController()
 
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_raw", 10);
 
-  // 검색 타이머 설정 (10Hz로 주기적으로 체크)
+  // 타이머 설정 (30Hz — 감지→명령 딜레이 최소화)
   search_timer_ = this->create_wall_timer(
-    std::chrono::milliseconds(100),
+    std::chrono::milliseconds(33),
     std::bind(&TrackingController::timerCallback, this)
   );
 
@@ -96,14 +96,12 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
   linear_vel = std::max(-0.8f, std::min(0.8f, linear_vel));
   angular_vel = std::max(-1.5f, std::min(1.5f, angular_vel));
 
-  // 속도 명령 발행
+  // 상태만 업데이트 (발행은 timerCallback에서만)
   auto cmd = geometry_msgs::msg::Twist();
-  cmd.linear.x = -linear_vel;  // 부호 반전: 뒤로 가던 문제 해결
+  cmd.linear.x = -linear_vel;
   cmd.angular.z = angular_vel;
-  last_tracking_cmd_ = cmd;  // timerCallback 재발행용 저장
-  cmd_vel_pub_->publish(cmd);
+  last_tracking_cmd_ = cmd;
 
-  // 상태 업데이트
   prev_error_x_ = error_x;
   prev_error_y_ = error_y;
 
