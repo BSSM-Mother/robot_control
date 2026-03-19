@@ -159,7 +159,7 @@ void TrackingController::timerCallback() {
     cmd_vel_pub_->publish(cmd);
   } else {
     cmd_vel_pub_->publish(last_tracking_cmd_);
-    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
       "[TRACK] lin=%.2f ang=%.2f (%.1fs ago)",
       last_tracking_cmd_.linear.x, last_tracking_cmd_.angular.z, time_since_detection);
   }
