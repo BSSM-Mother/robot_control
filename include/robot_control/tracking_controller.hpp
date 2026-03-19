@@ -42,7 +42,7 @@ private:
   rclcpp::Time last_detection_time_;
   geometry_msgs::msg::Twist last_tracking_cmd_;   // 마지막 추적 명령 (timerCallback에서 재발행)
   static constexpr float SEARCH_TIMEOUT_ = 5.0f;  // 추적 중 5초 감지 없으면 검색 모드
-  static constexpr float MIN_CONFIDENCE_ = 0.2f;  // 이 미만이면 감지 무시
+  static constexpr float MIN_CONFIDENCE_ = 0.1f;  // 이 미만이면 감지 무시 (conf_threshold와 동일)
 
   // 검색 모드: ROTATE → OBSERVE → ROTATE ...
   //   ROTATE  : 회전
@@ -52,7 +52,7 @@ private:
   rclcpp::Time search_phase_start_;
   bool         was_searching_;                       // 추적→검색 전환 감지용
 
-  static constexpr float SEARCH_ANGULAR_    = 1.0f;  // 검색 회전 각속도 (rad/s)
+  static constexpr float SEARCH_ANGULAR_    = 0.5f;  // 검색 회전 각속도 (rad/s)
   static constexpr float SEARCH_ROTATE_SEC_ = 0.5f;  // 회전 시간 [s] — 실측 후 튜닝
   static constexpr float OBSERVE_SEC_       = 2.5f;  // 감지 대기 시간 [s]
   static constexpr float SETTLE_TIME_       = 0.3f;  // 회전 직후 안정화 (감지 무시) [s]

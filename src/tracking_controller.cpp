@@ -3,7 +3,7 @@
 
 TrackingController::TrackingController()
   : rclcpp::Node("tracking_controller"),
-    kp_linear_(0.6), ki_linear_(0.02), kd_linear_(0.08),
+    kp_linear_(0.3), ki_linear_(0.0), kd_linear_(0.0),
     kp_angular_(0.5), ki_angular_(0.01), kd_angular_(0.05),
     prev_error_x_(0.0), prev_error_y_(0.0),
     integral_error_x_(0.0), integral_error_y_(0.0),
