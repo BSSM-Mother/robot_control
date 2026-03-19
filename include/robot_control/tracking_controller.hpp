@@ -40,7 +40,8 @@ private:
   bool follow_mode_;  // MQTT로 제어 (true = 따라가기 ON)
   rclcpp::Time last_update_time_;
   rclcpp::Time last_detection_time_;
-  static constexpr float SEARCH_TIMEOUT_ = 2.0;  // 2초 이상 감지 안되면 회전
+  static constexpr float SEARCH_TIMEOUT_ = 2.0;   // 2초 이상 감지 안되면 회전
+  static constexpr float MIN_CONFIDENCE_ = 0.4f;  // 이 미만이면 감지 무시
 };
 
 #endif  // ROBOT_CONTROL__TRACKING_CONTROLLER_HPP_

@@ -54,6 +54,14 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
     return;
   }
 
+  float confidence = msg->z;
+
+  // 신뢰도가 너무 낮으면 감지로 인정하지 않음
+  // → last_detection_time_ 갱신 안 함 → 검색 모드(회전)가 정상 동작
+  if (confidence < MIN_CONFIDENCE_) {
+    return;
+  }
+
   person_detected_ = true;
   last_detection_time_ = this->now();
 
@@ -66,12 +74,6 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
   // 오차 계산
   float error_x = msg->x;  // 좌우 오차
   float error_y = msg->y;  // 상하 오차 (거리)
-  float confidence = msg->z;
-
-  // 신뢰도가 낮으면 명령 감소
-  if (confidence < 0.5) {
-    error_y *= confidence;
-  }
 
   // 적분 계산
   integral_error_x_ += error_x * dt;
