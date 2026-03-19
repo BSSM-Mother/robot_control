@@ -100,6 +100,7 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
   auto cmd = geometry_msgs::msg::Twist();
   cmd.linear.x = -linear_vel;  // 부호 반전: 뒤로 가던 문제 해결
   cmd.angular.z = angular_vel;
+  last_tracking_cmd_ = cmd;  // timerCallback 재발행용 저장
   cmd_vel_pub_->publish(cmd);
 
   // 상태 업데이트
@@ -120,18 +121,16 @@ void TrackingController::timerCallback() {
   // 마지막 감지 이후 경과 시간 확인
   double time_since_detection = (this->now() - last_detection_time_).seconds();
 
-  // 일정 시간 이상 감지되지 않으면 제자리에서 회전
   if (time_since_detection > SEARCH_TIMEOUT_) {
+    // 감지 없음 → 천천히 제자리 회전
     person_detected_ = false;
-
     auto cmd = geometry_msgs::msg::Twist();
-    cmd.linear.x = 0.0;      // 전진하지 않음
-    cmd.angular.z = 0.5;     // 시계 반대 방향으로 회전
+    cmd.linear.x = 0.0;
+    cmd.angular.z = 0.2;
     cmd_vel_pub_->publish(cmd);
-
-    RCLCPP_DEBUG(this->get_logger(),
-      "No person detected for %.1f seconds. Searching (rotating)...",
-      time_since_detection);
+  } else {
+    // 감지 중 → 마지막 추적 명령 재발행 (wheel_controller timeout 방지)
+    cmd_vel_pub_->publish(last_tracking_cmd_);
   }
 }
 
