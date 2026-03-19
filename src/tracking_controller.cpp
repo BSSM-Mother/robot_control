@@ -98,8 +98,8 @@ void TrackingController::personPositionCallback(const geometry_msgs::msg::Point:
 
   // 상태만 업데이트 (발행은 timerCallback에서만)
   auto cmd = geometry_msgs::msg::Twist();
-  cmd.linear.x = -linear_vel;
-  cmd.angular.z = angular_vel;
+  cmd.linear.x = linear_vel;    // ey<0(멀다)→앞으로, ey>0(가깝다)→뒤로
+  cmd.angular.z = -angular_vel; // ex>0(오른쪽)→오른 회전, ex<0(왼쪽)→왼 회전
   last_tracking_cmd_ = cmd;
 
   prev_error_x_ = error_x;
